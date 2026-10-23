@@ -17,6 +17,8 @@ env:
   GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
   GCP_CACHE_SA: ${{ secrets.GCP_CACHE_SA }}
   BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+  DD_API_KEY: ${{ secrets.DD_API_KEY }}
+  DD_SITE: datadoghq.com
 
 jobs:
   build-test:
@@ -45,7 +47,7 @@ jobs:
 
       - name: Build and test (remote cache)
         run: |
-          bazel test $BAZEL_CACHE --config=ci //... 2>&1 | tee bazel.log
+          bazel test $BAZEL_CACHE --config=ci --build_event_json_file=bep.json //... 2>&1 | tee bazel.log
           echo "## Cache" >> "$GITHUB_STEP_SUMMARY"
           grep -E "processes:|remote cache hit" bazel.log | tail -2 >> "$GITHUB_STEP_SUMMARY"
 
@@ -54,6 +56,15 @@ jobs:
           bazel run $BAZEL_CACHE --config=ci //go/chunker/convert:convert_test -- -test.run='^$' -test.bench=. -test.benchmem | tee bench.txt
           echo "## Benchmark" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"; grep -E "^Benchmark" bench.txt >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # Build telemetry to Datadog: the test run's BEP (wall time, actions, cache hit ratio, per-test timing)
+      # and the benchmark, posted to the metrics API since the runner has no Agent. Skipped without the key.
+      - name: Ship build metrics to Datadog
+        if: env.DD_API_KEY != ''
+        run: |
+          bazel build $BAZEL_CACHE --config=ci //go/bepdog
+          bazel-bin/go/bepdog/bepdog_/bepdog -bep bep.json -bench bench.txt -api -host github-actions \
+            -tag repo:bazel-monorepo -tag config:gcs -tag ci:github -tag "commit:${GITHUB_SHA::7}" -tag "branch:${GITHUB_REF_NAME}"
 
       - name: Release artifact
         run: |

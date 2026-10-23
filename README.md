@@ -3,7 +3,8 @@
 A small monorepo under **Bazel** where Go, Python and C++ targets share a single protobuf schema, build
 hermetically, and share a **remote cache on Google Cloud Storage** between laptops and CI, and run on
 **BuildBuddy remote executors** with `--config=remote`. Releases carry
-**SLSA build provenance** and a **keyless Sigstore signature**. Tests include **property-based tests**
+**SLSA build provenance** and a **keyless Sigstore signature**, and every build's timings, cache hits and
+test latencies go to **Datadog** through the Agent. Tests include **property-based tests**
 (Hypothesis in Python, `testing/quick` in Go, a seeded randomized check in C++) and a **benchmark** recorded
 on every CI run.
 
@@ -84,6 +85,25 @@ Measured: from the laptop, a cold `bazel test --config=remote //...` ran 351 act
 from BuildBuddy's cache, all three test suites passing on Linux executors; the CI job `remote-execution`
 runs the same 699-action suite remotely on every push. The key lives in a gitignored `user.bazelrc` and a
 CI secret, never in the repo.
+
+## Build telemetry to Datadog
+
+`go/bepdog` turns a build into metrics. Bazel writes its Build Event Protocol stream to a file
+(`--build_event_json_file`); the tool reads it and emits, under `bazel.*`: wall and CPU time, actions created
+and executed, a count per runner (local sandbox, remote, remote cache hit, internal) and the cache hit ratio,
+each test's duration, status and whether it was served from cache, and, from Go benchmark output, ns/op, MB/s
+and allocs/op. Every metric is tagged with commit, branch, config and repo.
+
+```bash
+tools/bazel-dd.sh test --config=gcs //...      # run, then ship through the local Datadog Agent (DogStatsD)
+BEPDOG_SINK=api tools/bazel-dd.sh test //...   # CI: post straight to the metrics API (DD_API_KEY)
+BEPDOG_SINK=dry tools/bazel-dd.sh test //...   # print the datagrams, send nothing
+```
+
+Locally the metrics go to the Datadog Agent on the machine over UDP, which is the shape the Agent is built
+for; in CI the `Ship build metrics to Datadog` step posts the same metrics to the API, since runners carry no
+Agent. The point is the same one the rest of this repo makes: build time, cache effectiveness, test latency
+and benchmark drift are things an SDLC team should see on a graph per commit, not reconstruct from logs.
 
 ## Provenance and signing
 
