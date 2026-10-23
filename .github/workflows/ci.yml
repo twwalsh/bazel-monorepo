@@ -16,6 +16,7 @@ env:
   # without the remote cache rather than failing on auth.
   GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
   GCP_CACHE_SA: ${{ secrets.GCP_CACHE_SA }}
+  BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
 
 jobs:
   build-test:
@@ -85,3 +86,24 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  # The same targets built and tested on BuildBuddy's remote executors instead of the runner. Skipped when the
+  # key is not set (forks). The invocation URL in the step summary opens the per-action timeline.
+  remote-execution:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+      - name: Test on remote executors
+        if: env.BUILDBUDDY_API_KEY != ''
+        run: |
+          bazel test --config=remote --config=ci \
+            --remote_header=x-buildbuddy-api-key="$BUILDBUDDY_API_KEY" \
+            --build_metadata=ROLE=CI --build_metadata=VISIBILITY=PUBLIC \
+            //... 2>&1 | tee remote.log
+          echo "## Remote execution" >> "$GITHUB_STEP_SUMMARY"
+          grep -E "processes:|remote cache hit|Streaming build results to" remote.log | tail -3 >> "$GITHUB_STEP_SUMMARY"

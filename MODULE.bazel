@@ -9,10 +9,22 @@ bazel_dep(name = "rules_python", version = "2.4.5")
 bazel_dep(name = "rules_cc", version = "0.2.27")
 bazel_dep(name = "protobuf", version = "36.2")
 bazel_dep(name = "platforms", version = "1.1.0")
+# BuildBuddy remote execution: a Linux x86_64 execution platform and a C++ toolchain for its executors.
+bazel_dep(name = "toolchains_buildbuddy", version = "0.0.4")
+
+buildbuddy = use_extension("@toolchains_buildbuddy//:extensions.bzl", "buildbuddy")
+buildbuddy.platform(buildbuddy_container_image = "UBUNTU24_04_IMAGE")
+use_repo(buildbuddy, "buildbuddy_toolchain")
 
 # Go: toolchain + modules from go.mod
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.26.5")
+# A Linux SDK too, so Go tools can run on the remote executors when --config=remote sets the host platform.
+go_sdk.download(
+    goarch = "amd64",
+    goos = "linux",
+    version = "1.26.5",
+)
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")

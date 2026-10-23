@@ -11,11 +11,21 @@ build:gcs --remote_cache=https://storage.googleapis.com/nth-victory-240719-bazel
 build:gcs --google_default_credentials
 build:gcs --remote_upload_local_results
 
-# Optional: BuildBuddy remote execution + results UI (bring your own API key in user.bazelrc).
-build:bb --bes_results_url=https://app.buildbuddy.io/invocation/
-build:bb --bes_backend=grpcs://remote.buildbuddy.io
-build:bb --remote_cache=grpcs://remote.buildbuddy.io
-build:bb --remote_timeout=3600
+# Remote EXECUTION on BuildBuddy: every action runs on their Linux x86_64 executors, results stream to the
+# BuildBuddy UI (per-action timings, cache hit rates, test logs). The API key is NOT here: it lives in the
+# gitignored user.bazelrc locally (build --remote_header=x-buildbuddy-api-key=…) and in a CI secret.
+#   bazel test --config=remote //...
+build:remote --remote_executor=grpcs://remote.buildbuddy.io
+build:remote --remote_cache=grpcs://remote.buildbuddy.io
+build:remote --bes_backend=grpcs://remote.buildbuddy.io
+build:remote --bes_results_url=https://app.buildbuddy.io/invocation/
+build:remote --host_platform=@buildbuddy_toolchain//:platform
+build:remote --platforms=@buildbuddy_toolchain//:platform
+build:remote --extra_execution_platforms=@buildbuddy_toolchain//:platform
+build:remote --extra_toolchains=@buildbuddy_toolchain//:cc_toolchain
+build:remote --remote_timeout=10m
+build:remote --jobs=50
+build:remote --remote_download_toplevel
 
 try-import %workspace%/user.bazelrc
 
