@@ -1,7 +1,8 @@
 # bazel-monorepo: one schema, three languages, one cache
 
 A small monorepo under **Bazel** where Go, Python and C++ targets share a single protobuf schema, build
-hermetically, and share a **remote cache on Google Cloud Storage** between laptops and CI. Releases carry
+hermetically, and share a **remote cache on Google Cloud Storage** between laptops and CI, and run on
+**BuildBuddy remote executors** with `--config=remote`. Releases carry
 **SLSA build provenance** and a **keyless Sigstore signature**. Tests include **property-based tests**
 (Hypothesis in Python, `testing/quick` in Go, a seeded randomized check in C++) and a **benchmark** recorded
 on every CI run.
@@ -54,8 +55,30 @@ a short-lived token for a service account that can read and write that one bucke
 no service-account key in the repo, in GitHub secrets, or on disk. `scripts/gcp-setup.sh` creates the bucket
 (14-day object lifecycle), the account, the pool and the provider, and prints the two secret values.
 
-Remote **execution** is not configured here. `--config=bb` is a sketch for BuildBuddy's hosted executors,
-which is the cheapest way to add it; a self-hosted executor on GCP is the next step after that.
+## Remote execution
+
+`--config=remote` runs every action on **BuildBuddy**'s hosted Linux x86_64 executors instead of the local
+machine, with results streamed to the BuildBuddy UI (per-action timeline, cache hit rates, test logs):
+
+```bash
+bazel test --config=remote //...        # API key in user.bazelrc: build:remote --remote_header=x-buildbuddy-api-key=…
+```
+
+The pieces that make it work from a Mac, each of which bit on the way in:
+
+- the execution platform must be the **explicit** `platform_linux_x86_64`, not the `:platform` alias, which
+  resolves to the host (darwin arm64) and schedules actions the pool cannot run;
+- `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, so Apple clang is never configured and BuildBuddy's Ubuntu gcc
+  toolchain is the only C++ toolchain in play;
+- a **Linux Go SDK** alongside the host one (`go_sdk.download(goos = "linux", goarch = "amd64")`), so Go
+  tools run on the executors;
+- pip wheels resolved for **both** `linux_x86_64` and `osx_aarch64` (`target_platforms` on `pip.parse`, with
+  the index URL so resolution uses the hashed lock rather than the host's pip).
+
+Measured: from the laptop, a cold `bazel test --config=remote //...` ran 351 actions remotely and took 348
+from BuildBuddy's cache, all three test suites passing on Linux executors; the CI job `remote-execution`
+runs the same 699-action suite remotely on every push. The key lives in a gitignored `user.bazelrc` and a
+CI secret, never in the repo.
 
 ## Provenance and signing
 

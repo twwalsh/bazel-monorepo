@@ -36,8 +36,16 @@ python.toolchain(python_version = "3.12", is_default = True)
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(
+    # Resolve wheels from the index for every platform the hashed lock allows, not just the host's, so the
+    # same targets build on BuildBuddy's Linux executors from a Mac.
+    experimental_index_url = "https://pypi.org/simple",
     hub_name = "pypi",
     python_version = "3.12",
     requirements_lock = "//python:requirements.txt",
+    # The host only, by default; name the executor platform too.
+    target_platforms = [
+        "linux_x86_64",
+        "osx_aarch64",
+    ],
 )
 use_repo(pip, "pypi")
