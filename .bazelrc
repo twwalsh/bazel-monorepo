@@ -22,5 +22,5 @@ try-import %workspace%/user.bazelrc
 # CI: no sandboxing surprises on the runner, machine-readable timings, fail fast.
 build:ci --noshow_progress
 build:ci --announce_rc
-build:ci --remote_download_minimal
+build:ci --remote_download_toplevel
 test:ci --test_output=errors
