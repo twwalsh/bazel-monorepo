@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package support.v1;
+
+option go_package = "github.com/twwalsh/bazel-monorepo/proto/support/v1;supportv1";
+
+// One retrievable passage of the fruitlessresearch.com support corpus: a manual section, a changelog entry,
+// an FAQ answer. The same 219 chunks the Cloudflare and Databricks assistants index.
+message Chunk {
+  string id = 1;       // content hash
+  string source = 2;   // "manual", "faq", "changelog", "page"
+  string title = 3;
+  string url = 4;
+  string text = 5;
+}
+
+message Corpus {
+  repeated Chunk chunks = 1;
+}

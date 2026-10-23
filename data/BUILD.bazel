@@ -1,0 +1,13 @@
+# The corpus as a protobuf binary, produced by the Go chunker from the JSONL export. Python and C++ consume
+# this artifact, so one schema change flows through all three languages in a single build.
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["chunks.jsonl", "eval.jsonl"])
+
+genrule(
+    name = "corpus",
+    srcs = ["chunks.jsonl"],
+    outs = ["corpus.binpb"],
+    cmd = "$(location //go/chunker) -in $(location chunks.jsonl) -out $@",
+    tools = ["//go/chunker"],
+)

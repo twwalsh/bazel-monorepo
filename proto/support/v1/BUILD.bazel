@@ -1,0 +1,27 @@
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "chunk_proto",
+    srcs = ["chunk.proto"],
+)
+
+go_proto_library(
+    name = "chunk_go_proto",
+    importpath = "github.com/twwalsh/bazel-monorepo/proto/support/v1",
+    proto = ":chunk_proto",
+)
+
+py_proto_library(
+    name = "chunk_py_proto",
+    deps = [":chunk_proto"],
+)
+
+cc_proto_library(
+    name = "chunk_cc_proto",
+    deps = [":chunk_proto"],
+)

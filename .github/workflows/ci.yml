@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write      # Workload Identity Federation to GCP, and keyless signing
+  attestations: write  # SLSA build provenance
+
+env:
+  BAZELISK_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          disk-cache: false
+          repository-cache: true
+
+      # The remote cache on Google Cloud Storage. CI authenticates through Workload Identity Federation, so
+      # there is no service-account key anywhere in this repository or its secrets.
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_CACHE_SA }}
+
+      - name: Build and test (remote cache)
+        run: |
+          bazel test --config=gcs --config=ci //... 2>&1 | tee bazel.log
+          echo "## Cache" >> "$GITHUB_STEP_SUMMARY"
+          grep -E "processes:|remote cache hit" bazel.log | tail -2 >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Benchmark (recorded, not gated)
+        run: |
+          bazel run --config=gcs --config=ci //go/chunker/convert:convert_test -- -test.run='^$' -test.bench=. -test.benchmem | tee bench.txt
+          echo "## Benchmark" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"; grep -E "^Benchmark" bench.txt >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Release artifact
+        run: |
+          bazel build --config=gcs --config=ci //go/chunker //data:corpus
+          mkdir -p dist
+          cp bazel-bin/go/chunker/chunker_/chunker dist/chunker-linux-amd64
+          cp bazel-bin/data/corpus.binpb dist/corpus.binpb
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      # Provenance: a SLSA attestation signed by GitHub's Sigstore instance, verifiable with
+      #   gh attestation verify dist/chunker-linux-amd64 --owner twwalsh
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/chunker-linux-amd64
+            dist/corpus.binpb
+
+      # Signing: keyless cosign against the same OIDC identity (the workflow), so a consumer can check that the
+      # binary was built by this workflow in this repo and nothing else.
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign
+        run: |
+          cosign sign-blob --yes --bundle dist/chunker-linux-amd64.sigstore.json dist/chunker-linux-amd64
+          cosign verify-blob --bundle dist/chunker-linux-amd64.sigstore.json \
+            --certificate-identity-regexp '^https://github.com/twwalsh/bazel-monorepo/' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/chunker-linux-amd64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

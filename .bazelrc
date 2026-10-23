@@ -1,0 +1,26 @@
+# Hermetic, reproducible, quiet.
+common --enable_bzlmod
+build --incompatible_strict_action_env
+build --show_timestamps
+test --test_output=errors
+
+# Remote cache on Google Cloud Storage. Bazel speaks to the bucket as an HTTP cache; credentials come from
+# gcloud application-default login locally and from Workload Identity Federation in CI.
+#   bazel build --config=gcs //...
+build:gcs --remote_cache=https://storage.googleapis.com/__BUCKET__
+build:gcs --google_default_credentials
+build:gcs --remote_upload_local_results
+
+# Optional: BuildBuddy remote execution + results UI (bring your own API key in user.bazelrc).
+build:bb --bes_results_url=https://app.buildbuddy.io/invocation/
+build:bb --bes_backend=grpcs://remote.buildbuddy.io
+build:bb --remote_cache=grpcs://remote.buildbuddy.io
+build:bb --remote_timeout=3600
+
+try-import %workspace%/user.bazelrc
+
+# CI: no sandboxing surprises on the runner, machine-readable timings, fail fast.
+build:ci --noshow_progress
+build:ci --announce_rc
+build:ci --remote_download_minimal
+test:ci --test_output=errors

@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "convert",
+    srcs = ["convert.go"],
+    importpath = "github.com/twwalsh/bazel-monorepo/go/chunker/convert",
+    visibility = ["//visibility:public"],
+    deps = ["//proto/support/v1:chunk_go_proto"],
+)
+
+go_test(
+    name = "convert_test",
+    srcs = ["convert_test.go"],
+    data = ["//data:chunks.jsonl"],
+    embed = [":convert"],
+    deps = ["@org_golang_google_protobuf//proto"],
+)

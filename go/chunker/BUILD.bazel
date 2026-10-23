@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "chunker_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/twwalsh/bazel-monorepo/go/chunker",
+    deps = [
+        "//go/chunker/convert",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_binary(
+    name = "chunker",
+    embed = [":chunker_lib"],
+    visibility = ["//visibility:public"],
+)

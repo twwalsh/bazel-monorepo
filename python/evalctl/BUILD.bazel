@@ -1,0 +1,28 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+
+py_library(
+    name = "retriever",
+    srcs = ["retriever.py"],
+    visibility = ["//visibility:public"],
+    deps = ["//proto/support/v1:chunk_py_proto"],
+)
+
+py_binary(
+    name = "evalctl",
+    srcs = ["main.py"],
+    main = "main.py",
+    deps = [":retriever"],
+)
+
+py_test(
+    name = "retriever_test",
+    srcs = ["retriever_test.py"],
+    args = ["$(location retriever_test.py)"],
+    data = ["//data:corpus"],
+    main = "retriever_test.py",
+    deps = [
+        ":retriever",
+        "@pypi//hypothesis",
+        "@pypi//pytest",
+    ],
+)

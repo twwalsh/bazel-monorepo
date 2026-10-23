@@ -1,0 +1,4 @@
+# Root package: gazelle for Go BUILD maintenance.
+load("@gazelle//:def.bzl", "gazelle")
+
+gazelle(name = "gazelle")

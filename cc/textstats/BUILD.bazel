@@ -1,0 +1,26 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_library(
+    name = "textstats",
+    srcs = ["textstats.cc"],
+    hdrs = ["textstats.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "textstats_test",
+    size = "small",
+    srcs = ["textstats_test.cc"],
+    deps = [":textstats"],
+)
+
+cc_binary(
+    name = "corpusstats",
+    srcs = ["corpusstats.cc"],
+    deps = [
+        ":textstats",
+        "//proto/support/v1:chunk_cc_proto",
+    ],
+)
