@@ -75,6 +75,11 @@ The pieces that make it work from a Mac, each of which bit on the way in:
 - pip wheels resolved for **both** `linux_x86_64` and `osx_aarch64` (`target_platforms` on `pip.parse`, with
   the index URL so resolution uses the hashed lock rather than the host's pip).
 
+BuildBuddy brings its own cache, so `--config=remote` uses that one and `--config=gcs` uses the bucket; the two
+are never combined. A real team runs one backend. Both are kept here because they show different things: the
+bucket demonstrates a keyless, federated-identity cache a team can own outright; BuildBuddy demonstrates
+execution and the per-action view that comes with an RBE service.
+
 Measured: from the laptop, a cold `bazel test --config=remote //...` ran 351 actions remotely and took 348
 from BuildBuddy's cache, all three test suites passing on Linux executors; the CI job `remote-execution`
 runs the same 699-action suite remotely on every push. The key lives in a gitignored `user.bazelrc` and a
