@@ -7,7 +7,7 @@ test --test_output=errors
 # Remote cache on Google Cloud Storage. Bazel speaks to the bucket as an HTTP cache; credentials come from
 # gcloud application-default login locally and from Workload Identity Federation in CI.
 #   bazel build --config=gcs //...
-build:gcs --remote_cache=https://storage.googleapis.com/__BUCKET__
+build:gcs --remote_cache=https://storage.googleapis.com/nth-victory-240719-bazel-cache
 build:gcs --google_default_credentials
 build:gcs --remote_upload_local_results
 
