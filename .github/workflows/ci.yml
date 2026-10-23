@@ -12,6 +12,10 @@ permissions:
 
 env:
   BAZELISK_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # Set as repository secrets by scripts/gcp-setup.sh. When absent (a fork, or before setup) the build runs
+  # without the remote cache rather than failing on auth.
+  GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+  GCP_CACHE_SA: ${{ secrets.GCP_CACHE_SA }}
 
 jobs:
   build-test:
@@ -28,26 +32,31 @@ jobs:
       # The remote cache on Google Cloud Storage. CI authenticates through Workload Identity Federation, so
       # there is no service-account key anywhere in this repository or its secrets.
       - id: auth
+        if: env.GCP_WIF_PROVIDER != ''
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_CACHE_SA }}
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_CACHE_SA }}
+
+      - name: Choose cache config
+        run: |
+          if [ -n "$GCP_WIF_PROVIDER" ]; then echo "BAZEL_CACHE=--config=gcs" >> "$GITHUB_ENV"; echo "remote cache: GCS"; else echo "BAZEL_CACHE=" >> "$GITHUB_ENV"; echo "remote cache: none (secrets not set)"; fi
 
       - name: Build and test (remote cache)
         run: |
-          bazel test --config=gcs --config=ci //... 2>&1 | tee bazel.log
+          bazel test $BAZEL_CACHE --config=ci //... 2>&1 | tee bazel.log
           echo "## Cache" >> "$GITHUB_STEP_SUMMARY"
           grep -E "processes:|remote cache hit" bazel.log | tail -2 >> "$GITHUB_STEP_SUMMARY"
 
       - name: Benchmark (recorded, not gated)
         run: |
-          bazel run --config=gcs --config=ci //go/chunker/convert:convert_test -- -test.run='^$' -test.bench=. -test.benchmem | tee bench.txt
+          bazel run $BAZEL_CACHE --config=ci //go/chunker/convert:convert_test -- -test.run='^$' -test.bench=. -test.benchmem | tee bench.txt
           echo "## Benchmark" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"; grep -E "^Benchmark" bench.txt >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Release artifact
         run: |
-          bazel build --config=gcs --config=ci //go/chunker //data:corpus
+          bazel build $BAZEL_CACHE --config=ci //go/chunker //data:corpus
           mkdir -p dist
           cp bazel-bin/go/chunker/chunker_/chunker dist/chunker-linux-amd64
           cp bazel-bin/data/corpus.binpb dist/corpus.binpb
